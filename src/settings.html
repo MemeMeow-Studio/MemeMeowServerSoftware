@@ -19,13 +19,13 @@
       </section>
       <section>
         <label class="option"><input id="run-in-background" type="checkbox">关闭窗口后继续在后台运行</label>
-        <p>后台运行时仍可使用快捷键。从托盘或菜单栏选择“退出”结束程序。</p>
+        <p>关闭窗口会隐藏到托盘，后台运行时仍可使用快捷键。从托盘或菜单栏选择“退出”结束程序。</p>
       </section>
       <section>
-        <label class="option"><input id="shortcut-enabled" type="checkbox">启用唤出窗口快捷键</label>
+        <label class="option"><input id="shortcut-enabled" type="checkbox">启用显示／隐藏窗口快捷键</label>
         <label class="shortcut-label" for="shortcut">快捷键</label>
         <div class="shortcut-row"><input id="shortcut" readonly aria-describedby="shortcut-hint" placeholder="点击后按下组合键"><button id="restore-shortcut" type="button">恢复默认</button></div>
-        <p id="shortcut-hint">点击输入框后按下组合键。客户端运行时，可从其他应用唤出窗口。</p>
+        <p id="shortcut-hint">点击输入框后按下组合键。窗口显示时按快捷键隐藏到托盘，隐藏或最小化时按快捷键恢复窗口。</p>
       </section>
       <footer><button id="save" type="submit">保存设置</button></footer>
     </fieldset>

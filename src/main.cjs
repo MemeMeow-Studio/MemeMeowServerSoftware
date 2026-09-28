@@ -34,6 +34,12 @@ function showMainWindow() {
   mainWindow.focus()
 }
 
+/** 全局快捷键切换业务窗口；隐藏或最小化时恢复，显示时隐藏到托盘。 */
+function toggleMainWindow() {
+  if (mainWindow?.isVisible() && !mainWindow.isMinimized()) mainWindow.hide()
+  else showMainWindow()
+}
+
 /** 展示并记录明确的故障原因；调用者只传入不含凭据的错误信息。 */
 function reportError(code, detail) {
   log.error(code, detail)
@@ -185,7 +191,7 @@ async function createWindow(url = serverUrl.href, show = true) {
 app.whenReady().then(async () => {
   serverUrl = parseServerUrl(process.env.MEMEMEOW_DESKTOP_URL ?? config.serverUrl)
   if (process.platform === 'win32') app.setAppUserModelId('cc.stellarformation.mememeow.desktop')
-  desktop = createDesktopControls(showMainWindow)
+  desktop = createDesktopControls(showMainWindow, toggleMainWindow)
   log.info('desktop_start', { version: app.getVersion(), origin: serverUrl.origin })
   app.on('activate', showMainWindow)
   await createWindow(serverUrl.href, !desktop.startHidden)

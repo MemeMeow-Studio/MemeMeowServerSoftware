@@ -5,8 +5,8 @@ const { pathToFileURL } = require('node:url')
 const log = require('electron-log/main')
 const { defaultSettings, validateSettings, readSettings, writeSettings } = require('./settings.cjs')
 
-/** 在 app ready 后安装本机功能；showMainWindow 负责恢复并聚焦业务窗口。 */
-function createDesktopControls(showMainWindow) {
+/** 在 app ready 后安装本机功能；两个回调分别负责显示窗口和切换窗口显示状态。 */
+function createDesktopControls(showMainWindow, toggleMainWindow) {
   const directory = app.getPath('userData')
   const settingsUrl = pathToFileURL(path.join(__dirname, 'settings.html')).href
   const loginSupported = app.isPackaged && ['win32', 'darwin'].includes(process.platform)
@@ -34,7 +34,7 @@ function createDesktopControls(showMainWindow) {
 
   /** 注册失败时给出可采取行动的信息；系统不会提供具体占用程序的名称。 */
   function registerShortcut(shortcut) {
-    if (!globalShortcut.register(shortcut, showMainWindow)) {
+    if (!globalShortcut.register(shortcut, toggleMainWindow)) {
       throw new Error(`desktop_shortcut_registration_failed: ${shortcut} 注册失败，可能被其他程序占用或受到系统限制。请修改组合键。`)
     }
   }
