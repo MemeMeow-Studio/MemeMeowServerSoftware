@@ -1,0 +1,46 @@
+{
+  "name": "mememeow-desktop",
+  "version": "0.1.0",
+  "description": "MemeMeow 桌面客户端",
+  "private": true,
+  "license": "UNLICENSED",
+  "author": "MemeMeow",
+  "main": "src/main.cjs",
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/policy.test.cjs",
+    "test:e2e": "node test/desktop.cjs",
+    "pack": "electron-builder --dir",
+    "dist:win": "electron-builder --win nsis --x64 --publish never",
+    "dist:win:zip": "electron-builder --win zip --x64 --publish never",
+    "dist:mac": "electron-builder --mac dmg --x64 --arm64 --publish never"
+  },
+  "dependencies": {
+    "electron-log": "5.4.4"
+  },
+  "devDependencies": {
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3",
+    "playwright": "1.63.0"
+  },
+  "build": {
+    "appId": "cc.stellarformation.mememeow.desktop",
+    "productName": "MemeMeow",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "directories": { "output": "dist" },
+    "files": ["src/**", "desktop.config.json", "package.json"],
+    "asar": true,
+    "win": { "target": "nsis" },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.entertainment",
+      "minimumSystemVersion": "13.0.0"
+    }
+  }
+}
