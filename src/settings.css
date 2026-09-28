@@ -1,0 +1,23 @@
+/* 本地设置窗口沿用网站的颜色，保留系统键盘操作与明确的状态提示。 */
+:root { font-family: system-ui, sans-serif; color: #2a2638; background: #f8f7fb; font-size: 14px; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 28px; }
+header { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+h1 { font-size: 22px; margin: 0; }
+p { color: #625d72; line-height: 1.6; margin: 8px 0 0; }
+header p { margin: 2px 0 0; }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+section { background: #fff; border: 1px solid #e3e0ed; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+.option { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+input[type=checkbox] { accent-color: #5157d9; width: 17px; height: 17px; margin: 0; }
+.shortcut-label { display: block; margin: 14px 0 6px; }
+.shortcut-row { display: flex; gap: 8px; }
+input, button { font: inherit; }
+input[readonly] { min-width: 0; flex: 1; padding: 10px; border: 1px solid #c7c2d8; border-radius: 6px; background: #fff; color: #2a2638; cursor: pointer; }
+button { padding: 9px 13px; border: 1px solid #c7c2d8; border-radius: 6px; background: #fff; color: #2a2638; cursor: pointer; }
+button:disabled, input:disabled { opacity: .55; cursor: not-allowed; }
+:focus-visible { outline: 3px solid #5157d9; outline-offset: 2px; }
+footer { display: flex; justify-content: flex-end; margin-top: 18px; }
+#save { background: #5157d9; border-color: #5157d9; color: #fff; }
+#status { white-space: pre-wrap; overflow-wrap: anywhere; }
+#status.error { color: #b64855; }

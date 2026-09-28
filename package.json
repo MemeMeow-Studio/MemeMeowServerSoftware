@@ -9,8 +9,9 @@
   "engines": { "node": ">=22.12.0" },
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/policy.test.cjs",
-    "test:e2e": "node test/desktop.cjs",
+    "icons": "node scripts/icons.cjs",
+    "test": "node --test test/policy.test.cjs test/settings.test.cjs",
+    "test:e2e": "node test/desktop.cjs && node test/controls.cjs",
     "pack": "electron-builder --dir",
     "dist:win": "electron-builder --win nsis --x64 --publish never",
     "dist:win:zip": "electron-builder --win zip --x64 --publish never",
@@ -22,16 +23,18 @@
   "devDependencies": {
     "electron": "44.4.5",
     "electron-builder": "26.15.3",
-    "playwright": "1.63.0"
+    "playwright": "1.63.0",
+    "sharp": "0.35.5"
   },
   "build": {
     "appId": "cc.stellarformation.mememeow.desktop",
     "productName": "MemeMeow",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "directories": { "output": "dist" },
-    "files": ["src/**", "desktop.config.json", "package.json"],
+    "files": ["src/**", "assets/*.png", "desktop.config.json", "package.json"],
+    "icon": "assets/icon.png",
     "asar": true,
-    "win": { "target": "nsis" },
+    "win": { "target": "nsis", "icon": "assets/icon.ico" },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
@@ -39,6 +42,7 @@
     },
     "mac": {
       "target": "dmg",
+      "icon": "assets/icon.icns",
       "category": "public.app-category.entertainment",
       "minimumSystemVersion": "13.0.0"
     }

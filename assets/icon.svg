@@ -1,0 +1,7 @@
+<!-- 桌面应用图标：沿用网站深色方块、白色 M 和整体旋转 −5° 的样式。 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <g transform="rotate(-5 512 512)">
+    <rect x="104" y="104" width="816" height="816" rx="86" fill="#2a2638"/>
+    <path d="M305 706V318h100l107 239 107-239h100v388h-88V476l-86 192h-66l-86-192v230Z" fill="#fff"/>
+  </g>
+</svg>

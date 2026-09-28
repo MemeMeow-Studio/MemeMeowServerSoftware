@@ -1,0 +1,4 @@
+<!-- macOS 菜单栏模板图标：透明背景让系统处理明暗主题。 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 1024 1024">
+  <path transform="rotate(-5 512 512)" d="M200 820V204h153l159 354 159-354h153v616H685V454L566 720H458L339 454v366Z" fill="#000"/>
+</svg>

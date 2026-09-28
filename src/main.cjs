@@ -4,9 +4,12 @@ const path = require('node:path')
 const log = require('electron-log/main')
 const config = require('../desktop.config.json')
 const { parseServerUrl, isSiteUrl, isExternalUrl, allowsPermission } = require('./policy.cjs')
+const { createDesktopControls } = require('./desktop.cjs')
 
 let mainWindow
 let serverUrl
+let desktop
+let quitting = false
 
 // 测试和开发可以选择独立目录，避免改变日常登录状态。
 if (process.env.MEMEMEOW_DESKTOP_USER_DATA) {
@@ -14,6 +17,22 @@ if (process.env.MEMEMEOW_DESKTOP_USER_DATA) {
 }
 app.setName('MemeMeow')
 log.transports.file.maxSize = 2 * 1024 * 1024
+
+// 全局快捷键、托盘和系统登录启动共用一个进程。
+if (!app.requestSingleInstanceLock()) app.exit(0)
+app.on('second-instance', () => { if (app.isReady()) showMainWindow() })
+
+/** 恢复隐藏或最小化的业务窗口，保留当前网页和登录会话。 */
+function showMainWindow() {
+  if (process.platform === 'darwin') app.show()
+  if (!mainWindow) {
+    void createWindow().catch((error) => reportError('desktop_window_create_failed', error.message))
+    return
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
 
 /** 展示并记录明确的故障原因；调用者只传入不含凭据的错误信息。 */
 function reportError(code, detail) {
@@ -52,13 +71,25 @@ async function openExternal(url) {
 /** 安装原生编辑菜单，让图片与文字都通过系统粘贴命令进入网页。 */
 function installMenu() {
   const template = [
-    ...(process.platform === 'darwin' ? [{ role: 'appMenu' }] : []),
+    ...(process.platform === 'darwin' ? [{ label: 'MemeMeow', submenu: [
+      { role: 'about', label: '关于 MemeMeow' },
+      { label: '桌面设置…', accelerator: 'Command+,', click: desktop.openSettings },
+      { type: 'separator' },
+      { role: 'services', label: '服务' },
+      { type: 'separator' },
+      { role: 'hide', label: '隐藏 MemeMeow' },
+      { role: 'hideOthers', label: '隐藏其他应用' },
+      { role: 'unhide', label: '显示全部' },
+      { type: 'separator' },
+      { role: 'quit', label: '退出 MemeMeow' },
+    ] }] : []),
     {
       label: '文件', submenu: [
         { label: '返回首页', click: () => loadSite(serverUrl.href) },
         { label: '在浏览器中打开', click: () => openExternal(mainWindow?.webContents.getURL() || serverUrl.href) },
         { type: 'separator' },
-        { role: process.platform === 'darwin' ? 'close' : 'quit', label: '关闭' },
+        { role: 'close', label: '关闭窗口' },
+        ...(process.platform !== 'darwin' ? [{ role: 'quit', label: '退出 MemeMeow' }] : []),
       ],
     },
     {
@@ -79,14 +110,18 @@ function installMenu() {
         ...(!app.isPackaged ? [{ role: 'toggleDevTools', label: '开发者工具' }] : []),
       ],
     },
+    ...(process.platform !== 'darwin' ? [{ label: '设置', submenu: [
+      { label: '桌面设置…', click: desktop.openSettings },
+    ] }] : []),
   ]
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
 /** 创建隔离的浏览器窗口，只向当前网站的主页面提供剪贴板权限。 */
-async function createWindow(url = serverUrl.href) {
+async function createWindow(url = serverUrl.href, show = true) {
   mainWindow = new BrowserWindow({
     title: 'MemeMeow', width: 1200, height: 820, minWidth: 760, minHeight: 560,
+    show, icon: path.join(__dirname, '../assets/icon.png'),
     backgroundColor: '#ffffff',
     webPreferences: {
       partition: 'persist:mememeow',
@@ -136,6 +171,12 @@ async function createWindow(url = serverUrl.href) {
   contents.on('render-process-gone', (_event, details) => {
     reportError('desktop_renderer_terminated', `${details.reason} (${details.exitCode})`)
   })
+  mainWindow.on('close', (event) => {
+    if (quitting) return
+    event.preventDefault()
+    if (desktop.runInBackground) mainWindow.hide()
+    else app.quit()
+  })
   mainWindow.on('closed', () => { mainWindow = null })
   installMenu()
   await loadSite(url)
@@ -143,15 +184,15 @@ async function createWindow(url = serverUrl.href) {
 
 app.whenReady().then(async () => {
   serverUrl = parseServerUrl(process.env.MEMEMEOW_DESKTOP_URL ?? config.serverUrl)
+  if (process.platform === 'win32') app.setAppUserModelId('cc.stellarformation.mememeow.desktop')
+  desktop = createDesktopControls(showMainWindow)
   log.info('desktop_start', { version: app.getVersion(), origin: serverUrl.origin })
-  await createWindow()
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) void createWindow()
-  })
+  app.on('activate', showMainWindow)
+  await createWindow(serverUrl.href, !desktop.startHidden)
+  desktop.showStartupIssue()
 }).catch((error) => {
   reportError('desktop_start_failed', error.message)
   app.exit(1)
 })
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
-})
+app.on('before-quit', () => { quitting = true })
+app.on('will-quit', () => { desktop?.dispose() })
