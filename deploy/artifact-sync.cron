@@ -1,0 +1,1 @@
+* * * * * test -s /home/infstellar/.config/mememeow-artifact-sync/github-token && /bin/bash -o pipefail -c 'PATH=/home/infstellar/.nvm/versions/node/v24.19.0/bin:/usr/local/bin:/usr/bin:/bin /bin/bash /home/infstellar/vscode/MemeMeowServerSoftware/scripts/sync-artifacts.sh 2>&1 | /usr/bin/logger --tag mememeow-artifact-sync'

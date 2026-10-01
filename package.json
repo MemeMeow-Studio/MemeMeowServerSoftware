@@ -1,7 +1,7 @@
 {
   "name": "mememeow-desktop",
   "version": "0.1.0",
-  "description": "MemeMeow 桌面客户端",
+  "description": "MemeMeow 桌面与 Android 客户端",
   "private": true,
   "license": "UNLICENSED",
   "author": "MemeMeow",
@@ -9,22 +9,44 @@
   "engines": { "node": ">=22.12.0" },
   "scripts": {
     "start": "electron .",
+    "start:dev": "node scripts/build.cjs dev start",
     "icons": "node scripts/icons.cjs",
-    "test": "node --test test/policy.test.cjs test/settings.test.cjs",
+    "test": "node --test test/policy.test.cjs test/settings.test.cjs test/artifact-sync.test.cjs test/profiles.test.cjs",
     "test:e2e": "node test/desktop.cjs && node test/controls.cjs",
-    "pack": "electron-builder --dir",
-    "dist:win": "electron-builder --win nsis --x64 --publish never",
-    "dist:win:zip": "electron-builder --win zip --x64 --publish never",
-    "dist:mac": "electron-builder --mac dmg --x64 --arm64 --publish never"
+    "pack": "node scripts/build.cjs prod desktop --dir",
+    "pack:dev": "node scripts/build.cjs dev desktop --dir",
+    "dist:win": "node scripts/build.cjs prod desktop --win nsis --x64 --publish never",
+    "dist:win:dev": "node scripts/build.cjs dev desktop --win nsis --x64 --publish never",
+    "dist:win:zip": "node scripts/build.cjs prod desktop --win zip --x64 --publish never",
+    "dist:win:zip:dev": "node scripts/build.cjs dev desktop --win zip --x64 --publish never",
+    "dist:mac": "node scripts/build.cjs prod desktop --mac dmg --x64 --arm64 --publish never",
+    "dist:mac:dev": "node scripts/build.cjs dev desktop --mac dmg --x64 --arm64 --publish never",
+    "android:sync": "cap sync android",
+    "android:open": "cap open android",
+    "android:icons": "node scripts/android-icons.cjs",
+    "android:build": "node scripts/build.cjs prod android",
+    "android:build:dev": "node scripts/build.cjs dev android",
+    "test:profiles:live": "node test/profiles-live.cjs",
+    "artifacts:sync": "bash scripts/sync-artifacts.sh",
+    "test:artifacts:live": "node test/artifact-sync-live.cjs"
   },
   "dependencies": {
+    "@capacitor/android": "8.5.2",
+    "@capacitor/core": "8.5.2",
+    "@capacitor/file-transfer": "2.0.5",
+    "@capacitor/filesystem": "8.1.3",
+    "@capacitor-community/media": "9.1.0",
+    "@capawesome/capacitor-file-picker": "8.1.0",
     "electron-log": "5.4.4"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.5.2",
+    "adm-zip": "0.6.1",
     "electron": "44.4.5",
     "electron-builder": "26.15.3",
     "playwright": "1.63.0",
-    "sharp": "0.35.5"
+    "sharp": "0.35.5",
+    "typescript": "5.9.3"
   },
   "build": {
     "appId": "cc.stellarformation.mememeow.desktop",

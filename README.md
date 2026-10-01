@@ -1,6 +1,39 @@
-# MemeMeow 桌面客户端
+# MemeMeow 客户端
 
 Electron 窗口加载 `https://mememeow.cc`，使用网站的登录、检索和上传功能。网页更新后，桌面端重新加载页面即可使用。客户端需要网络连接。
+
+## Android 客户端
+
+Android 使用 Capacitor 8.5.2，支持 Android 7.0 及以上版本，加载 `https://mememeow.cc`。网站需部署包含 `nativeMedia.ts` 和 `useImageAction.ts` 的前端，才能提供下面的相册操作。
+
+- 点击检索结果图片，将原图保存到名为 **MemeMeow** 的相册。PNG、JPEG 和 GIF 保留原始文件内容，包括 GIF 动画。保存期间显示进度提示，完成后清理下载缓存。
+- 上传页面点击“选择相册图片”，打开系统照片选择器。支持多选，选择后加入待上传列表，再使用现有上传选项提交。关闭选择器可以取消本次选择。
+- Android 11 及以上使用系统选择器和应用媒体目录，无须允许应用读取整个图库。Android 7–10 下载时会请求文件读写权限；拒绝权限时显示错误原因。
+
+相册文件位于 `Android/media/cc.stellarformation.mememeow.android/MemeMeow`，由 Media 插件注册到系统图库。卸载应用可能清除这个应用目录，需要保留的图片应另外备份。
+
+### 构建 Android APK
+
+需要 Node.js 22.12 及以上、JDK 21、Android SDK Platform 36，并设置 `JAVA_HOME` 和 `ANDROID_HOME`：
+
+```sh
+npm ci
+npm run android:build
+```
+
+APK 位于 `android/app/build/outputs/apk/debug/app-debug.apk`，使用调试签名，可以直接安装。正式发布需要配置长期保存的签名密钥，并更新 `android/app/build.gradle` 的 `versionCode` 和 `versionName`。同一应用的后续更新必须使用相同签名密钥。
+
+`npm run android:open` 打开 Android Studio 工程。修改原生依赖或 `capacitor.config.ts` 后执行 `npm run android:sync`；修改应用图标后执行 `npm run android:icons`，并提交生成的 Android 资源。
+
+在项目开发服务运行、设备已连接 ADB 时，可以测试本机网站：
+
+```sh
+adb reverse tcp:28275 tcp:28275
+MEMEMEOW_ANDROID_URL=http://127.0.0.1:28275 npm run android:build
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+`MEMEMEOW_ANDROID_URL` 在同步和构建时写入 APK，允许 HTTPS 或本机回环 HTTP 地址。默认地址用于线上网站；本机开发地址仅用于开发 APK。
 
 ## 开发运行
 
@@ -60,6 +93,7 @@ Windows 托盘、macOS 菜单栏提供“显示窗口”“桌面设置…”和
 | Windows 10、Windows 11 | x64 | `.exe`，可选择安装目录 |
 | macOS 13 及以上 | Intel x64 | `.dmg` |
 | macOS 13 及以上 | Apple Silicon arm64 | `.dmg` |
+| Android 7.0 及以上 | 通用 | `.apk` |
 
 在 Windows 构建 Windows 安装包：
 
@@ -79,9 +113,13 @@ npm run dist:mac
 
 产物位于 `dist/`，文件名包含版本、系统和架构。`npm run pack` 生成当前系统的应用目录，可用于本机检查。依赖及运行时版本由 `package-lock.json` 固定。
 
-GitHub Actions 支持手动运行 `Build desktop installers` 工作流，完成后从该次运行的 Artifacts 下载三个安装包。发布版本时，先把 `package.json` 中的版本更新为目标版本并提交，再推送同名标签，例如版本 `0.1.0` 对应 `v0.1.0`。标签构建成功后，工作流创建包含安装包的 GitHub Release 草稿，检查安装包后可手动发布。标签版本与 `package.json` 不一致时，构建会停止。
+GitHub Actions 支持手动运行 `Build client installers` 工作流，完成后从该次运行的 Artifacts 下载桌面安装包和 Android APK。发布版本时，先把 `package.json` 中的版本更新为目标版本并提交，再推送同名标签，例如版本 `0.1.0` 对应 `v0.1.0`。标签构建成功后，工作流创建包含安装包的 GitHub Release 草稿，检查安装包后可手动发布。标签版本与 `package.json` 不一致时，构建会停止。
 
 工作流在 Windows 构建 x64 `.exe`，在 macOS 构建 x64 和 arm64 `.dmg`。安装包均未签名。Windows 可能显示 SmartScreen 提示；macOS Gatekeeper 通常会阻止直接打开未签名应用。正常面向 macOS 用户发行需要 Developer ID 签名及 Apple 公证。macOS 的 DMG 构建需要 macOS 环境。
+
+## 公网下载
+
+服务器定时从 GitHub Actions 下载成功构建的安装包，保存到 `publishments/`，由 `download.mememeow.cc` 提供下载。Token 创建步骤、保存位置、任务检查和 Nginx 下载目录说明见 [安装包自动下载](docs/artifact-downloads.md)。手动同步使用 `npm run artifacts:sync`。
 
 ## 验证
 
@@ -110,6 +148,10 @@ MEMEMEOW_DESKTOP_URL=http://127.0.0.1:28275 npm run test:e2e
 
 ## 本次验证记录
 
+- Android 15 模拟器中的真实设备检查通过：网页登录、PNG／JPEG／GIF 原图保存、MemeMeow 相册在系统图库登记、下载缓存清理。
+- 系统照片选择器打开、取消和三张图片多选通过；经过网页上传后，三个上传 Task 最终成功，服务端图片内容与原图一致。
+- Android APK 构建成功，默认加载 `https://mememeow.cc`。设备验证使用项目已有开发服务，线上网站需要部署对应前端更新。
+- 其他 Android 版本和实体手机尚未验证。
 - Linux 图形会话中的真实 Electron 检查通过：开发网站加载、窗口隔离、PNG 剪贴板双向传递、原生图片粘贴。
 - 地址、权限和设置测试共 5 项，通过。
 - 真实设置窗口检查通过：快捷键录入、冲突提示、停用、恢复默认、重启持久化、后台隐藏、单实例唤出和退出。

@@ -1,3 +1,22 @@
 {
-  "serverUrl": "https://mememeow.cc"
+  "serverUrl": "https://mememeow.cc",
+  "channels": {
+    "prod": {
+      "productName": "MemeMeow",
+      "desktopAppId": "cc.stellarformation.mememeow.desktop",
+      "androidAppId": "cc.stellarformation.mememeow.android",
+      "assets": "assets",
+      "partition": "persist:mememeow",
+      "shortcuts": { "mac": "Command+Alt+M", "other": "Control+Alt+M" }
+    },
+    "dev": {
+      "serverUrl": "https://mememeow-dev.stellarformation.cc",
+      "productName": "MemeMeow Dev",
+      "desktopAppId": "cc.stellarformation.mememeow.desktop.dev",
+      "androidAppId": "cc.stellarformation.mememeow.android.dev",
+      "assets": "assets/dev",
+      "partition": "persist:mememeow-dev",
+      "shortcuts": { "mac": "Command+Alt+Shift+M", "other": "Control+Alt+Shift+M" }
+    }
+  }
 }
