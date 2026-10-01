@@ -27,6 +27,10 @@
     "android:build": "node scripts/build.cjs prod android",
     "android:build:dev": "node scripts/build.cjs dev android",
     "test:profiles:live": "node test/profiles-live.cjs",
+    "test:packages": "node test/packages.cjs",
+    "test:android:profiles:live": "node test/android-profiles-live.cjs",
+    "test:credentials:live": "bash test/run-credentials-live.sh",
+    "test:android:credentials:live": "bash test/run-credentials-live.sh android",
     "artifacts:sync": "bash scripts/sync-artifacts.sh",
     "test:artifacts:live": "node test/artifact-sync-live.cjs"
   },
@@ -40,10 +44,12 @@
     "electron-log": "5.4.4"
   },
   "devDependencies": {
+    "@electron/asar": "3.4.1",
     "@capacitor/cli": "8.5.2",
     "adm-zip": "0.6.1",
     "electron": "44.4.5",
     "electron-builder": "26.15.3",
+    "js-yaml": "4.3.2",
     "playwright": "1.63.0",
     "sharp": "0.35.5",
     "typescript": "5.9.3"

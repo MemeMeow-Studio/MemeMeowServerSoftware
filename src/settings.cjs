@@ -1,11 +1,12 @@
 /** 桌面偏好设置的校验和文件保存；登录启动状态直接由系统管理。 */
 const fs = require('node:fs')
 const path = require('node:path')
+const { getProfile } = require('./profile.cjs')
 
 /** 根据系统提供默认快捷键；返回可保存的本机偏好设置。 */
-function defaultSettings(platform = process.platform) {
+function defaultSettings(platform = process.platform, channel = 'prod') {
   return {
-    shortcut: platform === 'darwin' ? 'Command+Alt+M' : 'Control+Alt+M',
+    shortcut: getProfile(channel).shortcuts[platform === 'darwin' ? 'mac' : 'other'],
     shortcutEnabled: true,
     runInBackground: true,
   }
@@ -31,9 +32,9 @@ function validateSettings(value, platform = process.platform) {
 }
 
 /** 首次启动使用默认设置；已有文件损坏时保留文件并报告具体错误。 */
-function readSettings(directory) {
+function readSettings(directory, channel = 'prod') {
   const file = path.join(directory, 'desktop-settings.json')
-  if (!fs.existsSync(file)) return defaultSettings()
+  if (!fs.existsSync(file)) return defaultSettings(process.platform, channel)
   return validateSettings(JSON.parse(fs.readFileSync(file, 'utf8')))
 }
 

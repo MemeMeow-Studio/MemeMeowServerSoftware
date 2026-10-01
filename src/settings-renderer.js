@@ -27,6 +27,8 @@ function displayShortcut() {
 /** 从实际状态初始化表单，系统不支持的登录启动选项保持禁用。 */
 function populate(value) {
   state = value
+  document.title = `${state.productName} · 桌面设置`
+  document.querySelector('header img').src = state.icon
   accelerator = state.shortcut
   login.checked = state.login.enabled
   login.disabled = !state.login.supported

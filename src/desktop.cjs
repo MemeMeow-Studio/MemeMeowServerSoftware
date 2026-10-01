@@ -6,14 +6,14 @@ const log = require('electron-log/main')
 const { defaultSettings, validateSettings, readSettings, writeSettings } = require('./settings.cjs')
 
 /** 在 app ready 后安装本机功能；两个回调分别负责显示窗口和切换窗口显示状态。 */
-function createDesktopControls(showMainWindow, toggleMainWindow) {
+function createDesktopControls(showMainWindow, toggleMainWindow, profile) {
   const directory = app.getPath('userData')
   const settingsUrl = pathToFileURL(path.join(__dirname, 'settings.html')).href
   const loginSupported = app.isPackaged && ['win32', 'darwin'].includes(process.platform)
   const loginOptions = process.platform === 'win32'
     ? { path: process.execPath, args: ['--background'] }
     : { type: 'mainAppService' }
-  let settings = readSettings(directory)
+  let settings = readSettings(directory, profile.channel)
   let settingsWindow = null
   let registeredShortcut = null
   let shortcutError = ''
@@ -27,7 +27,7 @@ function createDesktopControls(showMainWindow, toggleMainWindow) {
       : current.openAtLogin || current.status === 'requires-approval'
     return {
       supported: true, enabled,
-      message: current.status === 'requires-approval' ? '请在 macOS 系统设置 → 通用 → 登录项中允许 MemeMeow。' : '',
+      message: current.status === 'requires-approval' ? `请在 macOS 系统设置 → 通用 → 登录项中允许 ${profile.productName}。` : '',
       status: current.status,
     }
   }
@@ -41,7 +41,8 @@ function createDesktopControls(showMainWindow, toggleMainWindow) {
 
   /** 设置页面只接收可显示的状态与默认值，不获得通用系统调用能力。 */
   function snapshot() {
-    return { ...settings, defaultShortcut: defaultSettings().shortcut, platform: process.platform, login: loginState(), shortcutError }
+    return { ...settings, productName: profile.productName, icon: `../${profile.assets}/icon.png`,
+      defaultShortcut: defaultSettings(process.platform, profile.channel).shortcut, platform: process.platform, login: loginState(), shortcutError }
   }
 
   /** 创建独立的本地设置页面，只允许该页面访问专用 IPC。 */
@@ -53,9 +54,9 @@ function createDesktopControls(showMainWindow, toggleMainWindow) {
       return
     }
     settingsWindow = new BrowserWindow({
-      title: 'MemeMeow · 桌面设置', width: 560, height: 610, minWidth: 500, minHeight: 560,
+      title: `${profile.productName} · 桌面设置`, width: 560, height: 610, minWidth: 500, minHeight: 560,
       show: false, autoHideMenuBar: true, backgroundColor: '#f8f7fb',
-      icon: path.join(__dirname, '../assets/icon.png'),
+      icon: path.join(__dirname, '..', profile.assets, 'icon.png'),
       webPreferences: {
         preload: path.join(__dirname, 'settings-preload.cjs'),
         partition: 'desktop-settings',
@@ -163,16 +164,16 @@ function createDesktopControls(showMainWindow, toggleMainWindow) {
     }
   }
 
-  const trayImage = nativeImage.createFromPath(path.join(__dirname, '../assets', process.platform === 'darwin' ? 'trayTemplate.png' : 'tray.png'))
+  const trayImage = nativeImage.createFromPath(path.join(__dirname, '..', profile.assets, process.platform === 'darwin' ? 'trayTemplate.png' : 'tray.png'))
   if (trayImage.isEmpty()) throw new Error('desktop_tray_icon_missing: 托盘图标无法读取。')
   if (process.platform === 'darwin') trayImage.setTemplateImage(true)
   const tray = new Tray(trayImage)
-  tray.setToolTip('MemeMeow')
+  tray.setToolTip(profile.productName)
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: '显示窗口', click: showMainWindow },
     { label: '桌面设置…', click: openSettings },
     { type: 'separator' },
-    { label: '退出 MemeMeow', click: () => app.quit() },
+    { label: `退出 ${profile.productName}`, click: () => app.quit() },
   ]))
   if (process.platform !== 'darwin') tray.on('click', showMainWindow)
 

@@ -21,7 +21,7 @@ npm ci
 npm run android:build
 ```
 
-APK 位于 `android/app/build/outputs/apk/debug/app-debug.apk`，使用调试签名，可以直接安装。正式发布需要配置长期保存的签名密钥，并更新 `android/app/build.gradle` 的 `versionCode` 和 `versionName`。同一应用的后续更新必须使用相同签名密钥。
+APK 位于 `dist/android/prod/app-debug.apk`，使用调试签名，可以直接安装。正式发布需要配置长期保存的签名密钥，并更新 `android/app/build.gradle` 的 `versionCode` 和 `versionName`。同一应用的后续更新必须使用相同签名密钥。
 
 `npm run android:open` 打开 Android Studio 工程。修改原生依赖或 `capacitor.config.ts` 后执行 `npm run android:sync`；修改应用图标后执行 `npm run android:icons`，并提交生成的 Android 资源。
 
@@ -30,7 +30,7 @@ APK 位于 `android/app/build/outputs/apk/debug/app-debug.apk`，使用调试签
 ```sh
 adb reverse tcp:28275 tcp:28275
 MEMEMEOW_ANDROID_URL=http://127.0.0.1:28275 npm run android:build
-adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+adb install -r dist/android/prod/app-debug.apk
 ```
 
 `MEMEMEOW_ANDROID_URL` 在同步和构建时写入 APK，允许 HTTPS 或本机回环 HTTP 地址。默认地址用于线上网站；本机开发地址仅用于开发 APK。
@@ -58,6 +58,44 @@ npm start
 ```
 
 登录会话保存在 Electron 的用户数据目录，关闭窗口后仍然保留。需要独立的开发数据目录时，设置 `MEMEMEOW_DESKTOP_USER_DATA`。
+
+## 本机账号与密码
+
+成功登录的账号记录在应用中，登录页提供“已保存账号”下拉框。选择已有账号后填入其保存密码；登录由用户提交。
+勾选“记住密码”并成功登录后保存密码，取消勾选并成功登录后删除该账号保存密码。
+登录页和账户中心的“清理已保存密码”清除本应用全部密码，保留账号记录和当前登录会话。
+
+Electron 使用系统 `safeStorage`；Linux 需要可用的系统密码服务。Android 使用 Tink 和 Android Keystore，并要求 WebView 支持主页面来源验证。
+密码以密文保存，凭据文件不参与 Android 备份或设备迁移。普通浏览器继续使用标准 `autocomplete`。
+网站与客户端均需包含凭据接口支持；旧客户端显示升级提示。本机存储错误保留已经成功的登录会话，并显示具体操作原因。
+
+真实凭据验收使用 `npm run test:credentials:live` 和 `npm run test:android:credentials:live`，通过 `MEMEMEOW_CREDENTIAL_FIXTURE` 指定开发服务器创建的测试账户文件。
+桌面测试直接启动 Electron，使用独立 D-Bus、GNOME Keyring、控制目录和用户数据目录；Android 测试使用项目的 `MemeMeowTest` 模拟器及开发 APK。
+
+## 开发服务器客户端
+
+`desktop.config.json` 的 `channels.dev` 定义开发包：网站为 `https://mememeow-dev.stellarformation.cc`，加载 `/home/infstellar/vscode/MemeMeowServer` 部署的前端，API 使用网页同域名地址。客户端名称为 `MemeMeow Dev`，应用与托盘图标带有 `dev` 标记。网站页面随开发服务器部署更新。
+
+正式包与开发包使用独立应用 ID。桌面用户数据分别保存在 `MemeMeow` 和 `MemeMeow Dev` 目录，登录会话、设置和单实例分别管理。开发包默认快捷键为 Windows/Linux 的 `Ctrl+Alt+Shift+M`、macOS 的 `Command+Option+Shift+M`。Android 开发包的 ID 为 `cc.stellarformation.mememeow.android.dev`，可以和正式包同时安装。
+
+```sh
+npm run start:dev
+npm run pack:dev
+npm run dist:win:dev
+npm run dist:win:zip:dev
+npm run dist:mac:dev
+npm run android:build:dev
+```
+
+桌面开发产物位于 `dist/dev/`，文件名为 `MemeMeow-Dev-{version}-{os}-{arch}.{ext}`。Android 开发产物位于 `dist/android/dev/MemeMeow-Dev-{version}-android.apk`。正式包继续使用原有桌面文件名和应用 ID。
+
+桌面构建把目标写入安装包的 `package.json`，启动时自动选择对应配置。Android 每次构建在 `.local/build/` 内创建独立工程，分别生成 Capacitor 配置、图标和原生依赖产物；正式包与开发包可以并行构建。`MEMEMEOW_ANDROID_URL` 仍支持构建时指定本机开发地址。
+
+GitHub Actions 在独立任务中同时构建两组客户端。开发下载项为 `windows-dev-x64`、`macos-dev-x64-arm64`、`android-dev-apk`；正式下载项保留原名。GitHub Release 和服务器安装包同步只使用正式产物。
+
+修改图标后执行 `npm run icons`，生成两个版本的图标；开发 SVG 位于 `assets/dev/`。真实桌面双版本验证使用 `npm run test:profiles:live`，需要图形会话和已完成的两个 Linux 应用目录构建。
+
+`npm run test:packages` 检查两个版本的 Linux 应用目录、Windows ZIP 和 APK，需设置 `ANDROID_HOME` 并准备 Android Build Tools 36.0.0。`npm run test:android:profiles:live` 在 `emulator-5554` 安装并启动两个 APK，核验网站和 API 地址；可通过 `MEMEMEOW_ANDROID_SERIAL` 指定测试设备。
 
 ## 桌面设置
 
@@ -153,9 +191,10 @@ MEMEMEOW_DESKTOP_URL=http://127.0.0.1:28275 npm run test:e2e
 - Android APK 构建成功，默认加载 `https://mememeow.cc`。设备验证使用项目已有开发服务，线上网站需要部署对应前端更新。
 - 其他 Android 版本和实体手机尚未验证。
 - Linux 图形会话中的真实 Electron 检查通过：开发网站加载、窗口隔离、PNG 剪贴板双向传递、原生图片粘贴。
-- 地址、权限和设置测试共 5 项，通过。
+- 地址、权限、设置、安装包同步、双版本配置和 CI 规则测试共 15 项，通过。
 - 真实设置窗口检查通过：快捷键录入、冲突提示、停用、恢复默认、重启持久化、后台隐藏、单实例唤出和退出。
 - X11 系统输入检查通过：后台启动与关闭窗口后保持隐藏，默认与自定义快捷键均可反复显示和隐藏窗口。
 - Windows ICO、macOS ICNS 和托盘 PNG 已生成。
-- Linux 应用目录打包成功，设置页面、preload 和运行时图标资源已包含在应用中。
+- 正式与开发 Linux 应用目录并行构建成功；两个真实客户端同时运行，默认网站与 API、独立名称与数据目录、Cookie 隔离、不同默认快捷键、设置保存和各自单实例唤出检查通过。
+- 正式与开发 Windows ZIP、Android APK 并行构建成功，包内身份、地址和图标资源检查通过；两个 APK 的签名验证通过。
 - Windows、macOS 的原生运行和登录启动尚未验证；GitHub Actions 尚未运行本次变更。

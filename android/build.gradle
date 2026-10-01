@@ -20,6 +20,12 @@ allprojects {
     }
 }
 
+subprojects {
+    if (project.name != 'app') {
+        layout.buildDirectory.set(new File(rootProject.projectDir, "build-libraries/${project.name}"))
+    }
+}
+
 task clean(type: Delete) {
     delete rootProject.buildDir
 }

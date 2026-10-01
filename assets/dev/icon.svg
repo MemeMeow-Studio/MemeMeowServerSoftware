@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <g transform="rotate(-5 512 512)">
+    <rect x="104" y="104" width="816" height="816" rx="86" fill="#2a2638"/>
+    <path d="M305 706V318h100l107 239 107-239h100v388h-88V476l-86 192h-66l-86-192v230Z" fill="#fff"/>
+  </g>
+  <rect x="524" y="734" width="408" height="178" rx="40" fill="#fbbf24" stroke="#2a2638" stroke-width="16"/>
+  <text x="728" y="867" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="142" font-weight="bold" fill="#2a2638">dev</text>
+</svg>

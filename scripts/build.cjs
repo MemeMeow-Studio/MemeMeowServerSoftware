@@ -41,6 +41,7 @@ async function main() {
   })
   env.MEMEMEOW_ANDROID_PATH = android
   env.MEMEMEOW_PROJECT_ROOT = project
+  env.JAVA_TOOL_OPTIONS = `${process.env.JAVA_TOOL_OPTIONS ?? ''} -Djava.io.tmpdir=${temporary}`.trim()
   await run(process.execPath, [require.resolve('@capacitor/cli/bin/capacitor'), 'sync', 'android'], project, env)
   await run(process.execPath, [path.join(project, 'scripts/android-icons.cjs'), channel], project, env)
   const gradle = process.platform === 'win32' ? 'gradlew.bat' : './gradlew'

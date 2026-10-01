@@ -2,20 +2,24 @@
 const { app, BrowserWindow, Menu, dialog, shell } = require('electron')
 const path = require('node:path')
 const log = require('electron-log/main')
-const config = require('../desktop.config.json')
+const { getProfile } = require('./profile.cjs')
+const metadata = require('../package.json')
 const { parseServerUrl, isSiteUrl, isExternalUrl, allowsPermission } = require('./policy.cjs')
 const { createDesktopControls } = require('./desktop.cjs')
+const profile = getProfile(app.isPackaged ? metadata.mememeowChannel ?? 'prod' : process.env.MEMEMEOW_CHANNEL ?? 'prod')
 
 let mainWindow
 let serverUrl
 let desktop
+const { ipcMain } = require("electron")
+const { createCredentialStore } = require("./credentials.cjs")
 let quitting = false
 
 // 测试和开发可以选择独立目录，避免改变日常登录状态。
-if (process.env.MEMEMEOW_DESKTOP_USER_DATA) {
-  app.setPath('userData', path.resolve(process.env.MEMEMEOW_DESKTOP_USER_DATA))
-}
-app.setName('MemeMeow')
+app.setName(profile.productName)
+app.setPath('userData', process.env.MEMEMEOW_DESKTOP_USER_DATA
+  ? path.resolve(process.env.MEMEMEOW_DESKTOP_USER_DATA) : path.join(app.getPath('appData'), profile.productName))
+app.setPath('sessionData', app.getPath('userData'))
 log.transports.file.maxSize = 2 * 1024 * 1024
 
 // 全局快捷键、托盘和系统登录启动共用一个进程。
@@ -43,7 +47,7 @@ function toggleMainWindow() {
 /** 展示并记录明确的故障原因；调用者只传入不含凭据的错误信息。 */
 function reportError(code, detail) {
   log.error(code, detail)
-  dialog.showErrorBox('MemeMeow', `${code}\n${detail}`)
+  dialog.showErrorBox(profile.productName, `${code}\n${detail}`)
 }
 
 /** 加载站内页面；加载失败保留 Chromium 错误码，供用户定位网络故障。 */
@@ -77,17 +81,17 @@ async function openExternal(url) {
 /** 安装原生编辑菜单，让图片与文字都通过系统粘贴命令进入网页。 */
 function installMenu() {
   const template = [
-    ...(process.platform === 'darwin' ? [{ label: 'MemeMeow', submenu: [
-      { role: 'about', label: '关于 MemeMeow' },
+    ...(process.platform === 'darwin' ? [{ label: profile.productName, submenu: [
+      { role: 'about', label: `关于 ${profile.productName}` },
       { label: '桌面设置…', accelerator: 'Command+,', click: desktop.openSettings },
       { type: 'separator' },
       { role: 'services', label: '服务' },
       { type: 'separator' },
-      { role: 'hide', label: '隐藏 MemeMeow' },
+      { role: 'hide', label: `隐藏 ${profile.productName}` },
       { role: 'hideOthers', label: '隐藏其他应用' },
       { role: 'unhide', label: '显示全部' },
       { type: 'separator' },
-      { role: 'quit', label: '退出 MemeMeow' },
+      { role: 'quit', label: `退出 ${profile.productName}` },
     ] }] : []),
     {
       label: '文件', submenu: [
@@ -95,7 +99,7 @@ function installMenu() {
         { label: '在浏览器中打开', click: () => openExternal(mainWindow?.webContents.getURL() || serverUrl.href) },
         { type: 'separator' },
         { role: 'close', label: '关闭窗口' },
-        ...(process.platform !== 'darwin' ? [{ role: 'quit', label: '退出 MemeMeow' }] : []),
+        ...(process.platform !== 'darwin' ? [{ role: 'quit', label: `退出 ${profile.productName}` }] : []),
       ],
     },
     {
@@ -126,16 +130,18 @@ function installMenu() {
 /** 创建隔离的浏览器窗口，只向当前网站的主页面提供剪贴板权限。 */
 async function createWindow(url = serverUrl.href, show = true) {
   mainWindow = new BrowserWindow({
-    title: 'MemeMeow', width: 1200, height: 820, minWidth: 760, minHeight: 560,
-    show, icon: path.join(__dirname, '../assets/icon.png'),
+    title: profile.productName, width: 1200, height: 820, minWidth: 760, minHeight: 560,
+    show, icon: path.join(__dirname, '..', profile.assets, 'icon.png'),
     backgroundColor: '#ffffff',
     webPreferences: {
-      partition: 'persist:mememeow',
+      partition: profile.partition,
+      preload: path.join(__dirname, "credentials-preload.cjs"),
       nodeIntegration: false, contextIsolation: true, sandbox: true,
       webSecurity: true, allowRunningInsecureContent: false, webviewTag: false,
     },
   })
   const contents = mainWindow.webContents
+  if (profile.channel === 'dev') mainWindow.on('page-title-updated', (event) => event.preventDefault())
   const permissionAllowed = (sender, permission, details) => sender === contents
     && !contents.isDestroyed()
     && allowsPermission({
@@ -189,11 +195,31 @@ async function createWindow(url = serverUrl.href, show = true) {
 }
 
 app.whenReady().then(async () => {
-  serverUrl = parseServerUrl(process.env.MEMEMEOW_DESKTOP_URL ?? config.serverUrl)
-  if (process.platform === 'win32') app.setAppUserModelId('cc.stellarformation.mememeow.desktop')
-  desktop = createDesktopControls(showMainWindow, toggleMainWindow)
-  log.info('desktop_start', { version: app.getVersion(), origin: serverUrl.origin })
+  serverUrl = parseServerUrl(process.env.MEMEMEOW_DESKTOP_URL ?? profile.serverUrl)
+  if (process.platform === 'win32') app.setAppUserModelId(profile.desktopAppId)
+  desktop = createDesktopControls(showMainWindow, toggleMainWindow, profile)
+  log.info('desktop_start', { version: app.getVersion(), channel: profile.channel, origin: serverUrl.origin })
   app.on('activate', showMainWindow)
+  const credentials = createCredentialStore(app.getPath("userData"), serverUrl.origin)
+  ipcMain.handle("mememeow:credentials", async (event, operation, options) => {
+    const contents = mainWindow?.webContents
+    if (!contents || event.sender !== contents || event.senderFrame !== contents.mainFrame
+      || !isSiteUrl(event.senderFrame.url, serverUrl) || !isSiteUrl(contents.getURL(), serverUrl)) {
+      return { ok: false, error: "credentials_origin_not_allowed: 当前页面无权访问已保存账号" }
+    }
+    if (!["list", "record", "read", "save", "remove", "clear"].includes(operation)) {
+      return { ok: false, error: "credentials_operation_invalid: 不支持此凭据操作" }
+    }
+    try {
+      return { ok: true, value: await credentials[operation](options) }
+    } catch (error) {
+      const detail = error instanceof SyntaxError
+        ? "saved-accounts.json: JSON 数据格式无效"
+        : error.path ? error.message.replaceAll(error.path, path.basename(error.path)) : error.message
+      log.error(`credentials_${operation}_failed`, error.code || error.name, detail)
+      return { ok: false, error: `credentials_${operation}_failed: ${error.code || error.name}: ${detail}` }
+    }
+  })
   await createWindow(serverUrl.href, !desktop.startHidden)
   desktop.showStartupIssue()
 }).catch((error) => {

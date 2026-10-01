@@ -1,8 +1,5 @@
 // 安卓客户端加载网站，并只为当前网站提供 Capacitor 接口。
 import type { CapacitorConfig } from '@capacitor/cli'
-import { createRequire } from 'node:module'
-
-const require = createRequire(import.meta.url)
 const { getProfile } = require('./src/profile.cjs')
 const profile = getProfile(process.env.MEMEMEOW_CHANNEL ?? 'prod')
 
@@ -19,13 +16,13 @@ const config: CapacitorConfig = {
   appName: profile.productName,
   webDir: 'mobile/www',
   server: {
-    url: parsedUrl.href,
+    url: parsedUrl.origin,
     cleartext: parsedUrl.protocol === 'http:',
   },
   android: {
     path: process.env.MEMEMEOW_ANDROID_PATH ?? 'android',
     backgroundColor: '#ffffff',
-    loggingBehavior: 'debug',
+    loggingBehavior: 'none',
   },
 }
 
