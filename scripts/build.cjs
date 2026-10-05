@@ -29,6 +29,7 @@ async function main() {
     return
   }
   if (target === 'desktop') {
+    if (process.platform === "linux") Object.assign(env, { LANG: "C.UTF-8", LC_ALL: "C.UTF-8", LC_CTYPE: "C.UTF-8" })
     await run(process.execPath, [require.resolve('electron-builder/cli.js'), '--config', 'electron-builder.config.cjs', ...args], project, env)
     return
   }

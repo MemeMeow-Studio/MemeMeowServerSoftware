@@ -61,9 +61,9 @@ npm start
 
 ## 本机账号与密码
 
-成功登录的账号记录在应用中，登录页提供“已保存账号”下拉框。选择已有账号后填入其保存密码；登录由用户提交。
+成功登录的账号记录在应用中，登录页自动填写最近登录账号与其保存密码。使用其他账号时手动输入邮箱和密码；登录由用户提交。
 勾选“记住密码”并成功登录后保存密码，取消勾选并成功登录后删除该账号保存密码。
-登录页和账户中心的“清理已保存密码”清除本应用全部密码，保留账号记录和当前登录会话。
+账户中心的“清理已保存密码”清除本应用全部密码，保留账号记录和当前登录会话。
 
 Electron 使用系统 `safeStorage`；Linux 需要可用的系统密码服务。Android 使用 Tink 和 Android Keystore，并要求 WebView 支持主页面来源验证。
 密码以密文保存，凭据文件不参与 Android 备份或设备迁移。普通浏览器继续使用标准 `autocomplete`。
@@ -82,8 +82,10 @@ Electron 使用系统 `safeStorage`；Linux 需要可用的系统密码服务。
 npm run start:dev
 npm run pack:dev
 npm run dist:win:dev
+npm run dist:win:arm64:dev
 npm run dist:win:zip:dev
 npm run dist:mac:dev
+npm run dist:linux:dev
 npm run android:build:dev
 ```
 
@@ -91,7 +93,7 @@ npm run android:build:dev
 
 桌面构建把目标写入安装包的 `package.json`，启动时自动选择对应配置。Android 每次构建在 `.local/build/` 内创建独立工程，分别生成 Capacitor 配置、图标和原生依赖产物；正式包与开发包可以并行构建。`MEMEMEOW_ANDROID_URL` 仍支持构建时指定本机开发地址。
 
-GitHub Actions 在独立任务中同时构建两组客户端。开发下载项为 `windows-dev-x64`、`macos-dev-x64-arm64`、`android-dev-apk`；正式下载项保留原名。GitHub Release 和服务器安装包同步只使用正式产物。
+GitHub Actions 在独立任务中同时构建两组客户端。开发下载项为 `windows-dev-x64`、`windows-dev-arm64`、`macos-dev-x64-arm64`、`linux-dev-x64`、`android-dev-apk`。GitHub Release 和服务器安装包同步只使用正式产物。Linux 和 Windows ARM64 任务只打包，不执行对应验收测试。
 
 修改图标后执行 `npm run icons`，生成两个版本的图标；开发 SVG 位于 `assets/dev/`。真实桌面双版本验证使用 `npm run test:profiles:live`，需要图形会话和已完成的两个 Linux 应用目录构建。
 
@@ -99,13 +101,15 @@ GitHub Actions 在独立任务中同时构建两组客户端。开发下载项�
 
 ## 桌面设置
 
-Windows 从“设置 → 桌面设置…”进入，macOS 从“MemeMeow → 桌面设置…”进入，也可以使用托盘或菜单栏图标打开。
+Windows、Linux 从“设置 → 桌面设置…”进入，macOS 从“MemeMeow → 桌面设置…”进入，也可以使用托盘或菜单栏图标打开。
 
-- **登录系统后自动启动**：默认关闭。启用后，在用户登录系统时后台启动。Windows、macOS 安装后的客户端提供此选项。macOS 如果要求批准，设置页面会提示前往系统设置的“通用 → 登录项”。客户端启动时尊重系统已有状态。
-- **显示／隐藏窗口快捷键**：Windows 默认为 `Ctrl+Alt+M`，macOS 默认为 `Command+Option+M`。窗口显示时按快捷键隐藏到托盘，隐藏或最小化时按快捷键恢复并聚焦窗口。点击输入框并按下组合键，保存后生效；支持停用和恢复默认。注册失败时显示错误，原快捷键继续有效。快捷键在客户端运行期间有效。
+- **登录系统后自动启动**：默认关闭。启用后，在用户登录系统时启动。打包后的桌面客户端提供此选项。Linux 使用 `$XDG_CONFIG_HOME/autostart/`，未设置该变量时使用 `~/.config/autostart/`；AppImage 使用原始文件路径，需要保留该文件。macOS 如果要求批准，设置页面会提示前往系统设置的“通用 → 登录项”。有可用恢复入口时后台启动，否则显示窗口。
+- **显示／隐藏窗口快捷键**：Windows、Linux 默认为 `Ctrl+Alt+M`，macOS 默认为 `Command+Option+M`。窗口显示时按快捷键隐藏到托盘，隐藏或最小化时按快捷键恢复并聚焦窗口。点击输入框并按下组合键，保存后生效；支持停用和恢复默认。注册失败时显示错误，原快捷键继续有效。快捷键在客户端运行期间有效。
 - **关闭窗口后继续在后台运行**：默认开启。关闭窗口会隐藏到托盘，快捷键或“显示窗口”会恢复窗口并保留页面。关闭此选项后，关闭主窗口会退出程序。
 
-Windows 托盘、macOS 菜单栏提供“显示窗口”“桌面设置…”和“退出 MemeMeow”。选择“退出”会结束程序并释放快捷键。重复启动客户端会显示已有窗口。
+Windows、Linux 托盘和 macOS 菜单栏提供“显示窗口”“桌面设置…”和“退出 MemeMeow”。选择“退出”会结束程序并释放快捷键。重复启动客户端会显示已有窗口。
+
+Linux 使用独立的 `.desktop` 身份关联应用窗口与 Wayland 快捷键授权。后台运行需要确认恢复入口：X11 已注册快捷键、Wayland 已实际触发的快捷键，或者存在宿主且已登记本进程图标的 StatusNotifier 托盘。缺少这些入口时关闭窗口会退出应用，后台启动会显示窗口。GNOME 托盘入口通常需要 AppIndicator 扩展。Linux 密码保存需要 GNOME Keyring 或 KDE KWallet 等系统密码服务。
 
 快捷键和后台运行设置保存在用户数据目录的 `desktop-settings.json`；登录启动状态直接读取系统。桌面设置使用独立本地窗口，远程网站无法调用设置接口。
 
@@ -117,20 +121,22 @@ Windows 托盘、macOS 菜单栏提供“显示窗口”“桌面设置…”和
 
 ## 图片剪贴板
 
-- 检索结果的“复制图片”按钮使用网页现有功能，将图片内容作为 PNG 写入系统剪贴板。
+- 检索结果的“复制图片”按钮将静态图片作为 PNG 写入系统剪贴板；GIF 通过桌面接口复制完整原始内容，保留动画帧、显示时间、循环设置和透明背景。
 - 图片右键菜单提供“复制图片”，复制所点击图片的实际内容。
 - 在上传页面按 `Ctrl+V`，macOS 按 `Cmd+V`，将剪贴板图片加入待上传列表。也可以使用“编辑 → 粘贴（含图片）”或右键粘贴菜单。
 - 网页可以通过标准 Clipboard API 读取图片；客户端只允许当前网站的前台主页面获得剪贴板读写权限。
 
-图片复制输出为静态图片，GIF 动画通过这条路径复制后不会保留动画。
+Windows 使用系统 `image/gif` 格式，macOS 使用 `com.compuserve.gif` 格式。GIF 复制需要网站包含 `nativeClipboard.ts` 和更新后的 `useImageClipboard.ts`，并使用包含 GIF 复制接口的桌面客户端。文件大小上限为 64 MiB；数据无效或写入失败时显示具体原因。接收应用需支持对应 GIF 格式。
 
 ## 安装包
 
 | 系统 | 架构 | 安装包 |
 | --- | --- | --- |
 | Windows 10、Windows 11 | x64 | `.exe`，可选择安装目录 |
+| Windows on ARM | arm64 | `.exe`，可选择安装目录 |
 | macOS 13 及以上 | Intel x64 | `.dmg` |
 | macOS 13 及以上 | Apple Silicon arm64 | `.dmg` |
+| Linux | x64 | `.AppImage`、`.deb`、`.rpm` |
 | Android 7.0 及以上 | 通用 | `.apk` |
 
 在 Windows 构建 Windows 安装包：
@@ -140,7 +146,9 @@ npm ci
 npm run dist:win
 ```
 
-需要解压运行的 Windows 发行文件时，执行 `npm run dist:win:zip`，解压整个 ZIP 后运行其中的 `MemeMeow.exe`。在 Linux 交叉构建时，NSIS 安装程序还需要 Wine；ZIP 构建不需要执行 Windows 程序。
+Windows ARM64 安装包使用 `npm run dist:win:arm64` 构建。Windows ARM64 和 Linux 的最低系统要求采用当前 Electron 与 electron-builder 的默认要求。
+
+需要解压运行的 Windows x64 发行文件时，执行 `npm run dist:win:zip`，解压整个 ZIP 后运行其中的 `MemeMeow.exe`。Linux 交叉构建 NSIS 安装程序需要可用的 Wine；ZIP 构建不需要执行 Windows 程序。
 
 在 macOS 构建两种架构的安装包：
 
@@ -149,17 +157,28 @@ npm ci
 npm run dist:mac
 ```
 
+在 Linux 构建三种格式的安装包：
+
+```sh
+npm ci
+npm run dist:linux
+```
+
+RPM 构建需要系统提供 `rpmbuild`；GitHub Actions 自动安装 RPM 构建工具。DEB 用于 Ubuntu、Debian、Linux Mint，RPM 用于 Fedora 等发行版，AppImage 用于便携运行，下载后需要为文件添加执行权限。桌面集成面向 GNOME、KDE Plasma、Xfce 和 Cinnamon。正式版与开发版使用独立的包名称、可执行文件和 `.desktop` 文件，可同时安装。
+
 产物位于 `dist/`，文件名包含版本、系统和架构。`npm run pack` 生成当前系统的应用目录，可用于本机检查。依赖及运行时版本由 `package-lock.json` 固定。
 
 GitHub Actions 支持手动运行 `Build client installers` 工作流，完成后从该次运行的 Artifacts 下载桌面安装包和 Android APK。发布版本时，先把 `package.json` 中的版本更新为目标版本并提交，再推送同名标签，例如版本 `0.1.0` 对应 `v0.1.0`。标签构建成功后，工作流创建包含安装包的 GitHub Release 草稿，检查安装包后可手动发布。标签版本与 `package.json` 不一致时，构建会停止。
 
-工作流在 Windows 构建 x64 `.exe`，在 macOS 构建 x64 和 arm64 `.dmg`。安装包均未签名。Windows 可能显示 SmartScreen 提示；macOS Gatekeeper 通常会阻止直接打开未签名应用。正常面向 macOS 用户发行需要 Developer ID 签名及 Apple 公证。macOS 的 DMG 构建需要 macOS 环境。
+工作流在 Windows 分别构建 x64 和 arm64 `.exe`，在 macOS 构建 x64 和 arm64 `.dmg`，在 Linux 构建 x64 AppImage、DEB 和 RPM。安装包均未签名。Windows 可能显示 SmartScreen 提示；macOS Gatekeeper 通常会阻止直接打开未签名应用。正常面向 macOS 用户发行需要 Developer ID 签名及 Apple 公证。macOS 的 DMG 构建需要 macOS 环境。
 
 ## 公网下载
 
 服务器定时从 GitHub Actions 下载成功构建的安装包，保存到 `publishments/`，由 `download.mememeow.cc` 提供下载。Token 创建步骤、保存位置、任务检查和 Nginx 下载目录说明见 [安装包自动下载](docs/artifact-downloads.md)。手动同步使用 `npm run artifacts:sync`。
 
 ## 验证
+
+Linux 和 Windows ARM64 本次仅执行正式版与开发版打包，不执行安装、运行和桌面集成验收。下面的已有测试命令保留，新增平台的 CI 任务不运行这些命令。
 
 ```sh
 npm test
@@ -172,6 +191,8 @@ MEMEMEOW_DESKTOP_URL=http://127.0.0.1:28275 npm run test:e2e
 ```
 
 真实检查加载网站，验证 PNG 剪贴板双向传递和原生图片粘贴，并验证设置录入、快捷键冲突、停用、恢复默认、持久化、后台运行、单实例唤出和退出。测试使用独立用户数据目录，不登录账户、不提交业务数据。运行前请保存当前剪贴板中需要保留的内容。
+
+GIF 检查使用 `MEMEMEOW_DESKTOP_URL=http://127.0.0.1:28275 npm run test:gif:live`。该测试读取相邻 `MemeMeowServer/frontend` 的实际图片复制模块，使用其已安装的 esbuild；可通过 `MEMEMEOW_FRONTEND_ROOT` 指定其他前端目录。测试检查 GIF 字节与动画信息、网页复制、右键处理、窗口权限，以及 PNG/JPEG 复制；Linux 原生右键菜单操作需要 `xdotool`。
 
 ## 窗口与故障处理
 

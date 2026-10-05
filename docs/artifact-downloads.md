@@ -4,7 +4,7 @@
 
 公开目录为 `/home/infstellar/vscode/MemeMeowServerSoftware/publishments`。下载、SHA-256 校验、ZIP 解压和安装包检查全部成功后，原子更新 `latest` 符号链接。安装包保存在 `builds/<run_id>-<run_attempt>/`，已有版本继续保留。
 
-同一运行必须具备 Windows 和 macOS 安装包。如果该次工作流包含 Android 任务，也必须具备对应 APK。下载文件来自同一次运行；各个桌面安装包的版本必须一致。压缩文件及解压后的文件总量分别限制为 2 GiB。
+同一运行必须具备 Windows x64 和 macOS 安装包。如果工作流包含 Windows ARM64、Linux 或 Android 任务，也必须具备对应产物。Linux 任务需要同时提供 AppImage、DEB 和 RPM。新增任务出现之前的成功构建继续按其已有任务同步。下载文件来自同一次运行；各个桌面安装包的版本必须一致。压缩文件及解压后的文件总量分别限制为 2 GiB。
 
 ## 创建 GitHub Token
 
@@ -75,11 +75,15 @@ journalctl -t mememeow-artifact-sync --since today
 Nginx 需要能够读取该目录及上级目录，并允许访问符号链接。首页为 `index.html`，安装包链接为：
 
 - `https://download.mememeow.cc/latest/MemeMeow-win-x64.exe`
+- `https://download.mememeow.cc/latest/MemeMeow-win-arm64.exe`
 - `https://download.mememeow.cc/latest/MemeMeow-mac-x64.dmg`
 - `https://download.mememeow.cc/latest/MemeMeow-mac-arm64.dmg`
+- `https://download.mememeow.cc/latest/MemeMeow-linux-x64.AppImage`
+- `https://download.mememeow.cc/latest/MemeMeow-linux-x64.deb`
+- `https://download.mememeow.cc/latest/MemeMeow-linux-x64.rpm`
 - `https://download.mememeow.cc/latest/MemeMeow-android.apk`
 
-Android 链接在包含 Android 任务的成功构建同步完成后提供。`latest/manifest.json` 记录来源仓库、构建编号、commit SHA、安装包大小和 SHA-256。原始安装包文件名可以通过 `builds/<run_id>-<run_attempt>/` 下载。
+Windows ARM64、Linux 和 Android 链接在包含对应任务的成功构建同步完成后提供。`latest/manifest.json` 记录来源仓库、构建编号、commit SHA、安装包大小和 SHA-256。原始安装包文件名可以通过 `builds/<run_id>-<run_attempt>/` 下载。
 
 首页、`latest/` 下的文件和符号链接使用禁止缓存或要求重新校验的响应头。版本目录可以长期缓存。APK 下载使用 `application/vnd.android.package-archive`，安装包可设置 `Content-Disposition: attachment`。
 

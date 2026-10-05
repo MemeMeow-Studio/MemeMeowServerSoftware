@@ -73,9 +73,9 @@ test('CI 分别构建两组产物，正式 Release 只下载正式包', () => {
     assert.equal(upload.with.name, artifact)
   }
   const development = workflow.jobs.development.strategy.matrix.include
-  assert.deepEqual(development.map((item) => item.artifact), ['windows-dev-x64', 'macos-dev-x64-arm64', 'android-dev-apk'])
-  assert.deepEqual(workflow.jobs.release.needs, ['windows', 'macos', 'android'])
+  assert.deepEqual(development.map((item) => item.artifact), ["windows-dev-x64", "macos-dev-x64-arm64", "windows-dev-arm64", "linux-dev-x64", "android-dev-apk"])
+  assert.deepEqual(workflow.jobs.release.needs, ["windows", "windows-arm64", "macos", "linux", "android"])
   const downloads = workflow.jobs.release.steps.filter((step) => step.uses === 'actions/download-artifact@v4')
-  assert.deepEqual(downloads.map((step) => step.with.name), ['windows-x64', 'macos-x64-arm64', 'android-apk'])
+  assert.deepEqual(downloads.map((step) => step.with.name), ["windows-x64", "windows-arm64", "macos-x64-arm64", "linux-x64", "android-apk"])
   assert.ok(downloads.every((step) => !step.with.pattern))
 })

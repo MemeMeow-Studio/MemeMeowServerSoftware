@@ -6,7 +6,7 @@ const { spawn, execFile } = require("node:child_process")
 const { promisify } = require("node:util")
 const { randomBytes } = require("node:crypto")
 const { chromium } = require("playwright")
-const { callCredentials, submitLogin, runSavedAccountsFlow, verifyClearPasswords } = require("./saved-accounts-flow.cjs")
+const { callCredentials, submitLogin, runSavedAccountsFlow, verifyLoginControls, verifyClearPasswords, openAccountPage } = require("./saved-accounts-flow.cjs")
 const executeFile = promisify(execFile)
 
 /** 直接启动应用进程，使用 CDP 操作真实窗口和真实系统密码服务。 */
@@ -89,7 +89,7 @@ async function startKeyring(directory) {
   return { environment, close: async () => { keyring.kill(); await exited } }
 }
 
-/** 用真实 FIFO 暂停文件读取，恢复时提供同一份真实凭据数据。 */
+/** 用真实 FIFO 暂停文件读取，恢复时提供同一份凭据数据；回调用于连续暂停读取。 */
 async function blockCredentialRead(filename) {
   const contents = await fs.readFile(filename)
   const original = `${filename}.reading`
@@ -99,12 +99,13 @@ async function blockCredentialRead(filename) {
   let released = false
   return {
     opened,
-    release: async () => {
+    release: async (afterRestore) => {
       if (released) return
       released = true
       const keeper = await fs.open(filename, "r+")
       const writer = await opened
       await fs.rename(original, filename)
+      if (afterRestore) await afterRestore()
       await writer.writeFile(contents)
       await writer.close()
       await keeper.close()
@@ -115,9 +116,9 @@ async function blockCredentialRead(filename) {
 /** 通过真实 Router 导航检查登录请求和本机保存期间的页面保护。 */
 async function verifyLoginNavigation(page, fixture, filename) {
   await page.goto(`${fixture.origin}/login`)
-  await page.getByLabel("已保存账号", { exact: true }).selectOption(fixture.accounts[0].email)
+  await page.waitForFunction((email) => document.querySelector("input[type=email]")?.value === email, fixture.accounts[0].email)
   await page.getByLabel("密码", { exact: true }).fill(fixture.accounts[0].password)
-  await page.getByLabel("记住密码", { exact: true }).uncheck()
+  await page.getByLabel("记住密码", { exact: true }).check()
   const client = await page.context().newCDPSession(page)
   const blocked = await blockCredentialRead(filename)
   const checkNavigation = async () => {
@@ -151,26 +152,32 @@ async function verifyLoginNavigation(page, fixture, filename) {
 
 /** 真实读取被延迟时更改邮箱，旧结果不能覆盖当前表单输入。 */
 async function verifyReadCancellation(page, fixture, filename) {
-  await page.getByLabel("已保存账号", { exact: true }).selectOption(fixture.accounts[0].email)
   await callCredentials(page, "list")
   const blocked = await blockCredentialRead(filename)
+  let passwordRead
   try {
-    await page.getByLabel("已保存账号", { exact: true }).selectOption(fixture.accounts[1].email)
+    await page.goto(`${fixture.origin}/login`)
     await blocked.opened
+    await blocked.release(async () => { passwordRead = await blockCredentialRead(filename) })
+    await passwordRead.opened
     assert.ok(await page.getByLabel("密码", { exact: true }).isDisabled())
-    await page.getByLabel("邮箱", { exact: true }).fill(fixture.accounts[0].email)
-    await page.getByLabel("密码", { exact: true }).fill(fixture.accounts[0].password)
-    await blocked.release()
+    await page.getByLabel("邮箱", { exact: true }).fill(fixture.accounts[1].email)
+    await page.getByLabel("密码", { exact: true }).fill(fixture.accounts[1].password)
+    await passwordRead.release()
     await callCredentials(page, "list")
-    assert.ok(await page.getByLabel("密码", { exact: true }).inputValue() === fixture.accounts[0].password)
+    assert.equal(await page.getByLabel("邮箱", { exact: true }).inputValue(), fixture.accounts[1].email)
+    assert.ok(await page.getByLabel("密码", { exact: true }).inputValue() === fixture.accounts[1].password)
     assert.ok(!await page.getByLabel("记住密码", { exact: true }).isChecked())
   } finally {
     await blocked.release()
+    await passwordRead?.release()
   }
 }
 
-/** 清理等待真实读取完成时，全部凭据输入保持禁用，完成后保留账号。 */
+/** 账户中心清理等待真实读取完成时禁用清理按钮，完成后保留账号与会话。 */
 async function verifyPendingClear(page, fixture, filename) {
+  await openAccountPage(page, fixture)
+  await page.getByRole("button", { name: "清理已保存密码", exact: true }).waitFor()
   const before = (await callCredentials(page, "list")).accounts
   const blocked = await blockCredentialRead(filename)
   const reading = callCredentials(page, "read", { email: fixture.accounts[1].email })
@@ -178,16 +185,20 @@ async function verifyPendingClear(page, fixture, filename) {
     await blocked.opened
     page.once("dialog", (dialog) => dialog.accept())
     await page.getByRole("button", { name: "清理已保存密码", exact: true }).click()
-    for (const label of ["邮箱", "密码", "已保存账号", "记住密码"]) {
-      assert.ok(await page.getByLabel(label, { exact: true }).isDisabled())
-    }
-    assert.ok(await page.getByRole("button", { name: "登录", exact: true }).isDisabled())
+    await page.getByRole("button", { name: "正在清理...", exact: true }).waitFor()
+    assert.ok(await page.getByRole("button", { name: "正在清理...", exact: true }).isDisabled())
     await blocked.release()
     await reading
     await page.locator("[data-sonner-toast]").filter({ hasText: "已清除本应用全部保存密码" }).waitFor()
-    assert.equal(await page.getByLabel("密码", { exact: true }).inputValue(), "")
     assert.deepEqual((await callCredentials(page, "list")).accounts, before)
     assert.ok((await callCredentials(page, "read", { email: fixture.accounts[1].email })).password === null)
+    const session = await page.evaluate(async () => {
+      const response = await fetch("/auth/session")
+      return { status: response.status, body: await response.json() }
+    })
+    assert.equal(session.status, 200)
+    assert.equal(session.body.account.email, fixture.accounts[0].email)
+    await callCredentials(page, "save", fixture.accounts[0])
     await callCredentials(page, "save", fixture.accounts[1])
   } finally {
     await blocked.release()
@@ -195,25 +206,21 @@ async function verifyPendingClear(page, fixture, filename) {
   }
 }
 
-/** 账号列表读取期间清理密码，列表完成后仍显示保留的账号记录。 */
-async function verifyClearDuringInitialization(page, fixture, filename) {
+/** 账号列表读取期间输入其他账号，读取完成后保留用户输入。 */
+async function verifyInitializationInput(page, fixture, filename) {
   const before = (await callCredentials(page, "list")).accounts
   const blocked = await blockCredentialRead(filename)
   try {
     await page.goto(`${fixture.origin}/login`)
     await blocked.opened
-    assert.equal(await page.getByLabel("已保存账号", { exact: true }).count(), 0)
-    page.once("dialog", (dialog) => dialog.accept())
-    await page.getByRole("button", { name: "清理已保存密码", exact: true }).click()
-    assert.ok(await page.getByLabel("邮箱", { exact: true }).isDisabled())
+    await verifyLoginControls(page)
+    await page.getByLabel("邮箱", { exact: true }).fill(fixture.accounts[1].email)
+    await page.getByLabel("密码", { exact: true }).fill(fixture.accounts[1].password)
     await blocked.release()
-    await page.locator("[data-sonner-toast]").filter({ hasText: "已清除本应用全部保存密码" }).waitFor()
-    await page.getByLabel("已保存账号", { exact: true }).waitFor()
-    const accounts = await page.getByLabel("已保存账号", { exact: true }).locator("option").evaluateAll((options) => options.map((option) => option.value).filter(Boolean))
-    assert.deepEqual(accounts, before)
-    assert.equal(await page.getByLabel("密码", { exact: true }).inputValue(), "")
-    assert.ok((await callCredentials(page, "read", { email: fixture.accounts[1].email })).password === null)
-    await callCredentials(page, "save", fixture.accounts[1])
+    assert.deepEqual((await callCredentials(page, "list")).accounts, before)
+    assert.equal(await page.getByLabel("邮箱", { exact: true }).inputValue(), fixture.accounts[1].email)
+    assert.ok(await page.getByLabel("密码", { exact: true }).inputValue() === fixture.accounts[1].password)
+    assert.ok(!await page.getByLabel("记住密码", { exact: true }).isChecked())
   } finally {
     await blocked.release()
   }
@@ -257,16 +264,18 @@ async function main() {
     application = await launch()
     page = application.page
     await page.goto(`${fixture.origin}/login`)
-    await page.getByLabel("已保存账号", { exact: true }).selectOption(fixture.accounts[1].email)
-    await page.waitForFunction((password) => document.querySelector("input[type=password]")?.value === password, fixture.accounts[1].password)
+    await page.waitForFunction((password) => document.querySelector("input[type=password]")?.value === password, fixture.accounts[0].password)
+    assert.equal(await page.getByLabel("邮箱", { exact: true }).inputValue(), fixture.accounts[0].email)
+    assert.ok((await callCredentials(page, "read", { email: fixture.accounts[1].email })).password === fixture.accounts[1].password)
+    await verifyLoginControls(page)
     await verifyReadCancellation(page, fixture, filename)
     await verifyPendingClear(page, fixture, filename)
-    await verifyClearDuringInitialization(page, fixture, filename)
+    await verifyInitializationInput(page, fixture, filename)
     await verifyClearPasswords(page, fixture)
 
     await fs.mkdir(`${filename}.new`)
     await page.goto(`${fixture.origin}/login`)
-    await page.getByLabel("已保存账号", { exact: true }).selectOption(fixture.accounts[0].email)
+    await page.waitForFunction((email) => document.querySelector("input[type=email]")?.value === email, fixture.accounts[0].email)
     await page.getByLabel("密码", { exact: true }).fill(fixture.accounts[0].password)
     await page.getByLabel("记住密码", { exact: true }).check()
     assert.equal((await submitLogin(page)).status(), 200)
@@ -311,7 +320,7 @@ async function main() {
     await ordinaryPage.getByLabel("邮箱", { exact: true }).waitFor()
     assert.equal(await ordinaryPage.getByLabel("记住密码", { exact: true }).count(), 0)
     assert.ok(await ordinaryPage.evaluate(() => window.mememeowCredentials === undefined))
-    console.log("Electron 真实验收通过：登录失败不保存、账号选择、密文存储、重启恢复、取消记住密码、登录导航保护、读取取消、清理期间输入保护、清理保留会话、页面隔离、磁盘故障、拒绝 basic_text 后端与普通浏览器行为。")
+    console.log("Electron 真实验收通过：登录页面控件、登录失败不保存、最近账号自动填写、密文存储、重启恢复、取消记住密码、登录导航保护、读取取消、初始化输入保护、账户中心清理保留会话、页面隔离、磁盘故障、拒绝 basic_text 后端与普通浏览器行为。")
   } finally {
     await browser?.close()
     await application?.close()

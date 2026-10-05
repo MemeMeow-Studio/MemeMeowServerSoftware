@@ -4,12 +4,14 @@ const path = require('node:path')
 const { pathToFileURL } = require('node:url')
 const log = require('electron-log/main')
 const { defaultSettings, validateSettings, readSettings, writeSettings } = require('./settings.cjs')
+const { createLinuxLogin, hasLinuxTrayHost } = require("./linux-desktop.cjs")
 
 /** 在 app ready 后安装本机功能；两个回调分别负责显示窗口和切换窗口显示状态。 */
 function createDesktopControls(showMainWindow, toggleMainWindow, profile) {
   const directory = app.getPath('userData')
   const settingsUrl = pathToFileURL(path.join(__dirname, 'settings.html')).href
-  const loginSupported = app.isPackaged && ['win32', 'darwin'].includes(process.platform)
+  const loginSupported = app.isPackaged && ["win32", "darwin", "linux"].includes(process.platform)
+  const linuxLogin = process.platform === "linux" && app.isPackaged ? createLinuxLogin(profile) : null
   const loginOptions = process.platform === 'win32'
     ? { path: process.execPath, args: ['--background'] }
     : { type: 'mainAppService' }
@@ -17,10 +19,12 @@ function createDesktopControls(showMainWindow, toggleMainWindow, profile) {
   let settingsWindow = null
   let registeredShortcut = null
   let shortcutError = ''
+  const activatedShortcuts = new Set()
 
   /** 查询真实登录项状态，让系统设置中的外部变更能够显示在客户端中。 */
   function loginState() {
-    if (!loginSupported) return { supported: false, enabled: false, message: '开机自启仅在安装后的 Windows、macOS 客户端中提供。' }
+    if (!loginSupported) return { supported: false, enabled: false, message: "登录启动仅在打包后的客户端中提供。" }
+    if (linuxLogin) return linuxLogin.read()
     const current = app.getLoginItemSettings(loginOptions)
     const enabled = process.platform === 'win32'
       ? current.openAtLogin && current.executableWillLaunchAtLogin
@@ -34,7 +38,10 @@ function createDesktopControls(showMainWindow, toggleMainWindow, profile) {
 
   /** 注册失败时给出可采取行动的信息；系统不会提供具体占用程序的名称。 */
   function registerShortcut(shortcut) {
-    if (!globalShortcut.register(shortcut, toggleMainWindow)) {
+    if (!globalShortcut.register(shortcut, () => {
+      activatedShortcuts.add(shortcut)
+      toggleMainWindow()
+    })) {
       throw new Error(`desktop_shortcut_registration_failed: ${shortcut} 注册失败，可能被其他程序占用或受到系统限制。请修改组合键。`)
     }
   }
@@ -94,7 +101,8 @@ function createDesktopControls(showMainWindow, toggleMainWindow, profile) {
 
   /** 修改系统登录项后立即读取结果，保留系统拒绝或等待批准的具体状态。 */
   function setLogin(enabled) {
-    app.setLoginItemSettings({ ...loginOptions, openAtLogin: enabled, ...(process.platform === 'win32' ? { enabled } : {}) })
+    if (linuxLogin) linuxLogin.write(enabled)
+    else app.setLoginItemSettings({ ...loginOptions, openAtLogin: enabled, ...(process.platform === 'win32' ? { enabled } : {}) })
     const current = loginState()
     if (current.enabled !== enabled) {
       throw new Error(`desktop_login_update_failed: ${current.message || `系统未接受登录启动设置（${current.status || 'Windows 登录项状态未更新'}）。`}`)
@@ -132,6 +140,7 @@ function createDesktopControls(showMainWindow, toggleMainWindow, profile) {
       throw error
     }
     if (shortcutChanged && registeredShortcut) globalShortcut.unregister(registeredShortcut)
+    if (shortcutChanged && registeredShortcut) activatedShortcuts.delete(registeredShortcut)
     registeredShortcut = nextShortcut
     settings = next
     shortcutError = ''
@@ -177,8 +186,18 @@ function createDesktopControls(showMainWindow, toggleMainWindow, profile) {
   ]))
   if (process.platform !== 'darwin') tray.on('click', showMainWindow)
 
+  async function canRestoreWindow() {
+    const shortcutAvailable = registeredShortcut && globalShortcut.isRegistered(registeredShortcut)
+      && (process.platform !== "linux" || (!process.env.WAYLAND_DISPLAY && process.env.XDG_SESSION_TYPE !== "wayland") || activatedShortcuts.has(registeredShortcut))
+    if (shortcutAvailable) return true
+    if (tray.isDestroyed()) return false
+    if (process.platform !== "linux") return true
+    return hasLinuxTrayHost()
+  }
+
   return {
     get runInBackground() { return settings.runInBackground },
+    canRestoreWindow,
     get startHidden() {
       return process.argv.includes('--background')
         || (process.platform === 'darwin' && app.getLoginItemSettings(loginOptions).wasOpenedAtLogin)

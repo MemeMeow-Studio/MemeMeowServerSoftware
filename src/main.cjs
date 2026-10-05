@@ -6,6 +6,7 @@ const { getProfile } = require('./profile.cjs')
 const metadata = require('../package.json')
 const { parseServerUrl, isSiteUrl, isExternalUrl, allowsPermission } = require('./policy.cjs')
 const { createDesktopControls } = require('./desktop.cjs')
+const { writeGif, assertImageCopyAllowed, copyImageFromUrl } = require('./gif-clipboard.cjs')
 const profile = getProfile(app.isPackaged ? metadata.mememeowChannel ?? 'prod' : process.env.MEMEMEOW_CHANNEL ?? 'prod')
 
 let mainWindow
@@ -17,6 +18,7 @@ let quitting = false
 
 // 测试和开发可以选择独立目录，避免改变日常登录状态。
 app.setName(profile.productName)
+if (process.platform === "linux") app.setDesktopName(`${profile.desktopAppId}.desktop`)
 app.setPath('userData', process.env.MEMEMEOW_DESKTOP_USER_DATA
   ? path.resolve(process.env.MEMEMEOW_DESKTOP_USER_DATA) : path.join(app.getPath('appData'), profile.productName))
 app.setPath('sessionData', app.getPath('userData'))
@@ -173,7 +175,10 @@ async function createWindow(url = serverUrl.href, show = true) {
   contents.on('context-menu', (_event, params) => {
     const items = []
     if (params.mediaType === 'image' && params.hasImageContents) {
-      items.push({ label: '复制图片', click: () => contents.copyImageAt(params.x, params.y) })
+      items.push({ label: '复制图片', click: () => {
+        void copyImageFromUrl(contents, serverUrl, params.srcURL, params)
+          .catch((error) => reportError('desktop_image_copy_failed', error.message))
+      } })
     }
     if (params.isEditable) items.push({ role: 'cut', label: '剪切' })
     if (params.selectionText || params.isEditable) items.push({ role: 'copy', label: '复制' })
@@ -183,10 +188,13 @@ async function createWindow(url = serverUrl.href, show = true) {
   contents.on('render-process-gone', (_event, details) => {
     reportError('desktop_renderer_terminated', `${details.reason} (${details.exitCode})`)
   })
-  mainWindow.on('close', (event) => {
+  mainWindow.on('close', async (event) => {
     if (quitting) return
     event.preventDefault()
-    if (desktop.runInBackground) mainWindow.hide()
+    const closingWindow = mainWindow
+    const background = desktop.runInBackground && await desktop.canRestoreWindow()
+    if (quitting || closingWindow.isDestroyed()) return
+    if (background) closingWindow.hide()
     else app.quit()
   })
   mainWindow.on('closed', () => { mainWindow = null })
@@ -200,6 +208,14 @@ app.whenReady().then(async () => {
   desktop = createDesktopControls(showMainWindow, toggleMainWindow, profile)
   log.info('desktop_start', { version: app.getVersion(), channel: profile.channel, origin: serverUrl.origin })
   app.on('activate', showMainWindow)
+  ipcMain.handle("mememeow:copy-gif", async (event, data) => {
+    const contents = mainWindow?.webContents
+    if (!contents || event.sender !== contents || event.senderFrame !== contents.mainFrame) {
+      throw new Error("image_clipboard_origin_invalid: 当前页面无权复制 GIF")
+    }
+    assertImageCopyAllowed(contents, serverUrl)
+    await writeGif(data)
+  })
   const credentials = createCredentialStore(app.getPath("userData"), serverUrl.origin)
   ipcMain.handle("mememeow:credentials", async (event, operation, options) => {
     const contents = mainWindow?.webContents
@@ -220,7 +236,8 @@ app.whenReady().then(async () => {
       return { ok: false, error: `credentials_${operation}_failed: ${error.code || error.name}: ${detail}` }
     }
   })
-  await createWindow(serverUrl.href, !desktop.startHidden)
+  const startHidden = desktop.startHidden && await desktop.canRestoreWindow()
+  await createWindow(serverUrl.href, !startHidden)
   desktop.showStartupIssue()
 }).catch((error) => {
   reportError('desktop_start_failed', error.message)

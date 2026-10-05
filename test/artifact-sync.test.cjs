@@ -51,7 +51,7 @@ test('压缩文件中的目录与文件名冲突在写入之前产生错误', as
 })
 
 test('安装包文件名需要包含同一版本及对应系统和架构', () => {
-  const desktop = installers.filter(installer => installer.job !== 'android')
+  const desktop = installers.filter(installer => ["windows", "macos"].includes(installer.job))
   const names = ['MemeMeow-0.1.0-win-x64.exe', 'MemeMeow-0.1.0-mac-x64.dmg', 'MemeMeow-0.1.0-mac-arm64.dmg']
   const identified = identifyInstallers(names, desktop)
   assert.equal(identified.version, '0.1.0')

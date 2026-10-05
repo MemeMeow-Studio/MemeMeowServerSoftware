@@ -13,6 +13,10 @@ const repository = 'MemeMeow-Studio/MemeMeowServerSoftware'
 const tokenPath = path.join(os.homedir(), '.config/mememeow-artifact-sync/github-token')
 const maxFileSize = 2 * 1024 * 1024 * 1024
 const installers = [
+  { artifact: "windows-arm64", job: "windows-arm64", pattern: /^MemeMeow-([0-9][A-Za-z0-9.+-]*)-win-arm64\.exe$/, alias: "MemeMeow-win-arm64.exe", label: "Windows ARM64" },
+  { artifact: "linux-x64", job: "linux", pattern: /^MemeMeow-([0-9][A-Za-z0-9.+-]*)-linux-x86_64\.AppImage$/, alias: "MemeMeow-linux-x64.AppImage", label: "Linux x64 AppImage" },
+  { artifact: "linux-x64", job: "linux", pattern: /^MemeMeow-([0-9][A-Za-z0-9.+-]*)-linux-amd64\.deb$/, alias: "MemeMeow-linux-x64.deb", label: "Linux x64 DEB" },
+  { artifact: "linux-x64", job: "linux", pattern: /^MemeMeow-([0-9][A-Za-z0-9.+-]*)-linux-x86_64\.rpm$/, alias: "MemeMeow-linux-x64.rpm", label: "Linux x64 RPM" },
   { artifact: 'windows-x64', job: 'windows', pattern: /^MemeMeow-([0-9][A-Za-z0-9.+-]*)-win-x64\.exe$/, alias: 'MemeMeow-win-x64.exe', label: 'Windows x64' },
   { artifact: 'macos-x64-arm64', job: 'macos', pattern: /^MemeMeow-([0-9][A-Za-z0-9.+-]*)-mac-x64\.dmg$/, alias: 'MemeMeow-mac-x64.dmg', label: 'macOS Intel x64' },
   { artifact: 'macos-x64-arm64', job: 'macos', pattern: /^MemeMeow-([0-9][A-Za-z0-9.+-]*)-mac-arm64\.dmg$/, alias: 'MemeMeow-mac-arm64.dmg', label: 'macOS Apple Silicon arm64' },

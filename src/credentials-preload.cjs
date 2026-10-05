@@ -1,4 +1,4 @@
-/** 业务网页的隔离接口：只暴露凭据操作，不提供通用 IPC 或文件访问能力。 */
+/** 业务网页的隔离接口：提供凭据管理和 GIF 复制能力。 */
 const { contextBridge, ipcRenderer } = require("electron")
 
 /** 接收主进程的明确结果，保留操作阶段和系统故障原因。 */
@@ -9,6 +9,11 @@ async function invoke(operation, options) {
 }
 
 if (process.isMainFrame) {
+  contextBridge.exposeInMainWorld("mememeowClipboard", {
+    version: 1,
+    maxGifBytes: 64 * 1024 * 1024,
+    copyGif: (data) => ipcRenderer.invoke("mememeow:copy-gif", data),
+  })
   contextBridge.exposeInMainWorld("mememeowCredentials", {
     version: 1,
     list: () => invoke("list"),
