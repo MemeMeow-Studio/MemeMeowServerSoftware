@@ -6,10 +6,11 @@
 
 - 检索结果点击复制使用桌面 GIF 接口，保留图片完整字节；原图和固定尺寸沿用网站的图片导出地址。
 - 右键菜单复制当前图片地址对应的 GIF 内容。静态图片沿用原生图片复制；网页 PNG/JPEG 复制保持 PNG 输出。
-- Windows 使用 `image/gif` 原始系统格式，macOS 使用 `com.compuserve.gif` 原始系统格式。
+- Windows 同时提供 `image/gif` 原始系统格式和 GIF 文件引用；Electron 将 `text/uri-list` 写入系统文件剪贴板格式 `CF_HDROP`。macOS 使用 `com.compuserve.gif` 原始系统格式。
+- Windows GIF 文件保存在用户数据目录的 `gif-clipboard/gif-*/MemeMeow.gif`，内容保持原始字节。每次复制使用独立文件，文件在应用退出后保留，供目标程序读取和重复粘贴。
 - GIF 接口只接受当前网站的前台主窗口；限制文件大小为 64 MiB，并使用 omggif 检查 GIF 结构与图片帧。
 
-## 检查结果
+## 检查结果（2026-10-05）
 
 - `npm test`：18 项通过。
 - 开源前端与 Server 前端的 `typecheck`、构建及图片尺寸和 HTTP 错误测试均通过；每套相关测试为 11 项。
@@ -19,6 +20,8 @@
 - Windows x64 ZIP 构建通过；包内 GIF 模块、主进程、preload、omggif 依赖和 ZIP 内的 app.asar 已核验。
 
 Windows 与 macOS 的原生运行尚未验证。
+
+Windows GIF 文件剪贴板路径尚未运行验证。
 
 ## 前端同步
 

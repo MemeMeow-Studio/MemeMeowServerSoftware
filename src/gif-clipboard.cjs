@@ -1,4 +1,7 @@
-const { clipboard, ClipboardItem } = require("electron")
+const { app, clipboard, ClipboardItem } = require("electron")
+const fs = require("node:fs/promises")
+const path = require("node:path")
+const { pathToFileURL } = require("node:url")
 const { GifReader } = require("omggif")
 const { isSiteUrl, allowsPermission } = require("./policy.cjs")
 
@@ -28,9 +31,20 @@ function validateGifData(data) {
 
 async function writeGif(data) {
   const payload = validateGifData(data)
-  await clipboard.write([new ClipboardItem({
+  const formats = {
     [gifClipboardFormat()]: new Blob([payload], { type: "image/gif" }),
-  })])
+  }
+  if (process.platform === "win32") {
+    const directory = path.join(app.getPath("userData"), "gif-clipboard")
+    await fs.mkdir(directory, { recursive: true })
+    const copyDirectory = await fs.mkdtemp(path.join(directory, "gif-"))
+    const filename = path.join(copyDirectory, "MemeMeow.gif")
+    await fs.writeFile(filename, Buffer.from(payload), { flag: "wx" })
+    formats["text/uri-list"] = new Blob([pathToFileURL(filename).href + "\r\n"], {
+      type: "text/uri-list",
+    })
+  }
+  await clipboard.write([new ClipboardItem(formats)])
 }
 
 function assertImageCopyAllowed(contents, serverUrl) {
